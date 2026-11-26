@@ -324,7 +324,7 @@ function save(now){clearTimeout(tSave);const f=()=>{try{localStorage.setItem(KEY
 function touch(){const d=cur();if(d)d.updatedAt=Date.now();save()}
 const MATS=[['bois','Bois'],['pvc','PVC'],['alu','Aluminium']],MATN={bois:'Bois',pvc:'PVC',alu:'Aluminium'};
 const VITS=['Double standard','Double phonique (Silence)','Triple','Feuilleté sécurité','Autre (voir notes)'],VOLETS=['Aucun','Coffre monobloc sur la fenêtre','Coffre extérieur / rénovation','Volet existant conservé'],LAMES=['PA 39','PA 43','PA 52','À définir'],MANS=['Sangle','Manivelle','Moteur filaire','Moteur radio','Moteur solaire','Préparé pour moteur'];
-const WX={vitType:VITS[0],volet:VOLETS[0],vLame:LAMES[0],vMan:MANS[0]},DX={mat:'bois',coulInt:'',coulExt:'',capot:false,pbois:false,pboisTxt:''};
+const WX={allege:'',hPoignee:'',vitType:VITS[0],volet:VOLETS[0],vLame:LAMES[0],vMan:MANS[0]},DX={mat:'bois',coulInt:'',coulExt:'',capot:false,pbois:false,pboisTxt:''};
 const fix=d=>{for(const k in DX)if(d[k]===undefined)d[k]=DX[k];for(const w of d.windows)for(const k in WX)if(w[k]===undefined)w[k]=WX[k];return d};
 const hasV=w=>w.volet&&w.volet!==VOLETS[0]&&w.volet!==VOLETS[3];
 const newWin=(i,src)=>Object.assign({id:uid(),...WX,rep:'F'+i,piece:'',type:'double',ouv:'OB',sens:'D',sens2:'D',qte:1,mode:'tableau',L:['','',''],H:['','',''],D:['',''],
@@ -408,6 +408,7 @@ function renderSaisie(){
      <div class="f" style="margin-top:10px">${inp('L.0','Largeur en haut',w.L[0])}${inp('L.1','Largeur au milieu',w.L[1])}${inp('L.2','Largeur en bas',w.L[2])}</div>
      <div class="f" style="margin-top:10px">${inp('H.0','Hauteur à gauche',w.H[0])}${inp('H.1','Hauteur au milieu',w.H[1])}${inp('H.2','Hauteur à droite',w.H[2])}</div>
      <div class="f" style="margin-top:10px">${inp('D.0','Diagonale 1',w.D[0])}${inp('D.1','Diagonale 2',w.D[1])}${inp('jeuL','Jeu de pose par côté',w.jeuL)}${inp('jeuH','Jeu de pose en hauteur (total)',w.jeuH)}</div>`}
+     <div class="f w2" style="margin-top:10px">${inp('allege','Hauteur d\'allège (sol fini → appui)',w.allege)}${inp('hPoignee','Hauteur de poignée souhaitée (depuis le sol fini)',w.hPoignee)}</div>
     </fieldset>
     ${d.mat==='bois'?`    <fieldset><legend>Bois, ${w.type==='porte'?'remplissages':'épaisseur de vitrage'}, finition</legend><div class="f w2">
      <label>Essence<select data-w="ess">${opt(st.S.ess,w.ess)}</select></label>
@@ -433,17 +434,17 @@ function renderRes(){const d=cur();if(!d||!$('#res'))return;const w=d.windows[st
   const R=compute(w,st.S);$('#elev').innerHTML=elev(w,R);
   if(!R.ok){$('#res').innerHTML=`<ul class="al">${R.alerts.map(a=>`<li class="${a.n}">${esc(a.t)}</li>`).join('')}</ul>`;return}
   $('#res').innerHTML=`<div class="price"><span class="big" style="font-size:clamp(26px,3.6vw,34px)">${mm(R.W)} × ${mm(R.H)}</span><small>${d.mat==='bois'?'cote dormant à fabriquer':'cote de fenêtre à commander'}, en mm</small></div>
-   <dl class="kv"><dt>Vitrage</dt><dd>${esc(w.vitType)}${d.pbois?' · petits bois':''}</dd><dt>Volet roulant</dt><dd>${esc(w.volet)}${hasV(w)?' · '+esc(w.vLame)+' · '+esc(w.vMan):''}</dd>${d.mat!=='bois'?'':R.leaves.map(l=>`<dt>${esc(l.nom)}</dt><dd>${mm(l.L)} × ${mm(l.H)} · ${l.role==='OB'?'OB':l.role==='FR'?'française':l.role==='SF'?'semi-fixe':'porte'} · ~${l.kg} kg</dd>`).join('')}
+   <dl class="kv"><dt>Allège</dt><dd>${w.allege?mm(num(w.allege))+' mm':'à relever'}</dd><dt>Poignée</dt><dd>${w.hPoignee?mm(num(w.hPoignee))+' mm du sol'+(num(w.allege)>0&&num(w.hPoignee)>num(w.allege)?' · '+mm(num(w.hPoignee)-num(w.allege))+' mm depuis l\'appui':''):'hauteur standard'}</dd><dt>Vitrage</dt><dd>${esc(w.vitType)}${d.pbois?' · petits bois':''}</dd><dt>Volet roulant</dt><dd>${esc(w.volet)}${hasV(w)?' · '+esc(w.vLame)+' · '+esc(w.vMan):''}</dd>${d.mat!=='bois'?'':R.leaves.map(l=>`<dt>${esc(l.nom)}</dt><dd>${mm(l.L)} × ${mm(l.H)} · ${l.role==='OB'?'OB':l.role==='FR'?'française':l.role==='SF'?'semi-fixe':'porte'} · ~${l.kg} kg</dd>`).join('')}
     ${d.mat!=='bois'?'':R.fills.map(f=>`<dt>${f.c.pan?'Panneau':'Vitrage'} ${esc(f.leaf.toLowerCase())}</dt><dd>${f.n*R.q} × ${mm(f.Lc)} × ${mm(f.Hc)} mm</dd>`).join('')}</dl>
    <ul class="al">${R.alerts.length?R.alerts.map(a=>`<li class="${a.n}">${esc(a.t)}</li>`).join(''):'<li class="ok">Cotes cohérentes.</li>'}</ul>`}
 function renderRecap(){const d=cur(),v=$('#v-recap');if(!d){v.innerHTML='<div class="empty"><h2>Aucun chantier</h2></div>';return}
-  const rows=d.windows.map((w,i)=>{const R=compute(w,st.S),[n,t]=statut(R);return`<tr data-act="selw" data-i="${i}" data-go="1"><td><b>${esc(w.rep)}</b></td><td>${esc(w.piece)}</td><td>${TYPES[w.type]}</td><td class="n">${R.q}</td><td class="n">${R.ok?mm(R.W)+' × '+mm(R.H):'–'}</td><td>${esc(w.vitType)}${d.mat==='bois'&&R.ok?'<br>'+R.fills.map(f=>`${f.n*R.q} × ${mm(f.Lc)} × ${mm(f.Hc)}`).join('<br>'):''}</td><td>${hasV(w)?esc(w.volet)+'<br>'+esc(w.vLame)+' · '+esc(w.vMan):esc(w.volet)}</td><td><span class="tag ${n}">${t}</span></td></tr>`}).join('');
+  const rows=d.windows.map((w,i)=>{const R=compute(w,st.S),[n,t]=statut(R);return`<tr data-act="selw" data-i="${i}" data-go="1"><td><b>${esc(w.rep)}</b></td><td>${esc(w.piece)}</td><td>${TYPES[w.type]}</td><td class="n">${R.q}</td><td class="n">${R.ok?mm(R.W)+' × '+mm(R.H):'–'}</td><td class="n">${w.allege?esc(w.allege):'–'}</td><td class="n">${w.hPoignee?esc(w.hPoignee):'std'}</td><td>${esc(w.vitType)}${d.mat==='bois'&&R.ok?'<br>'+R.fills.map(f=>`${f.n*R.q} × ${mm(f.Lc)} × ${mm(f.Hc)}`).join('<br>'):''}</td><td>${hasV(w)?esc(w.volet)+'<br>'+esc(w.vLame)+' · '+esc(w.vMan):esc(w.volet)}</td><td><span class="tag ${n}">${t}</span></td></tr>`}).join('');
   const nb=d.windows.reduce((s,w)=>s+Math.max(1,Math.round(num(w.qte)||1)),0),bad=d.windows.filter(w=>statut(compute(w,st.S))[0]!=='ok').length;
   v.innerHTML=`<div class="bar"><h2>${esc(d.client||'Chantier')}${d.chantier?' – '+esc(d.chantier):''}</h2></div>
    <p class="big" style="margin:0 0 6px">${nb} menuiserie${nb>1?'s':''} · ${bad?`<span style="color:var(--warn)">${bad} à revoir</span>`:'<span style="color:var(--ok)">tout est OK</span>'}</p>
    <p style="margin:0 0 6px"><b>${MATN[d.mat]}</b>${d.mat==='pvc'?(d.capot?' avec capotage alu':' sans capotage'):''} · intérieur : ${esc(d.coulInt||'à préciser')} · extérieur : ${esc(d.coulExt||'à préciser')} · petits bois : ${d.pbois?'oui'+(d.pboisTxt?' ('+esc(d.pboisTxt)+')':''):'non'}</p>
    <p class="muted">Touche une ligne pour la modifier. Cotes en mm.</p>
-   <div class="scroll"><table class="rec stack"><thead><tr><th>Repère</th><th>Pièce</th><th>Type</th><th class="n">Qté</th><th class="n">Cote</th><th>Vitrage</th><th>Volet roulant</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`}
+   <div class="scroll"><table class="rec stack"><thead><tr><th>Repère</th><th>Pièce</th><th>Type</th><th class="n">Qté</th><th class="n">Cote</th><th class="n">Allège</th><th class="n">Poignée</th><th>Vitrage</th><th>Volet roulant</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`}
 function renderEnvoyer(){const d=cur(),v=$('#v-envoyer');
   v.innerHTML=`<div class="send">
    <h2>Envoyer au bureau</h2>
