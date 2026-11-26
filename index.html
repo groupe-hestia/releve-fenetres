@@ -314,7 +314,7 @@ function compute(w,S){
 /* ---------- état, stockage sur la tablette ---------- */
 const KEY='releve-fenetres-mcm-v1';
 const st={S:merge(DEF,{}),D:new Map(),cur:null,wi:0,view:'saisie',arm:null,setAt:null};
-const cur=()=>st.D.get(st.cur);
+const cur=()=>{const d=st.D.get(st.cur);return d?fix(d):d};
 function load(){try{const o=JSON.parse(localStorage.getItem(KEY));if(o){st.S=merge(DEF,o.S||{});for(const d of o.D||[])st.D.set(d.id,d);st.cur=o.cur;st.setAt=o.setAt||null}}catch(e){}
   if(!st.D.has(st.cur))st.cur=[...st.D.values()].sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0]?.id||null}
 let tSave;
@@ -322,10 +322,15 @@ function save(now){clearTimeout(tSave);const f=()=>{try{localStorage.setItem(KEY
   const t=new Date();$('#status').textContent=`Enregistré sur la tablette · ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`}catch(e){$('#status').textContent='Mémoire pleine : envoie et supprime d\'anciens chantiers'}};
   now?f():tSave=setTimeout(f,300)}
 function touch(){const d=cur();if(d)d.updatedAt=Date.now();save()}
-const newWin=(i,src)=>Object.assign({id:uid(),rep:'F'+i,piece:'',type:'double',ouv:'OB',sens:'D',sens2:'D',qte:1,mode:'tableau',L:['','',''],H:['','',''],D:['',''],
+const MATS=[['bois','Bois'],['pvc','PVC'],['alu','Aluminium']],MATN={bois:'Bois',pvc:'PVC',alu:'Aluminium'};
+const VITS=['Double standard','Double phonique (Silence)','Triple','Feuilleté sécurité','Autre (voir notes)'],VOLETS=['Aucun','Coffre monobloc sur la fenêtre','Coffre extérieur / rénovation','Volet existant conservé'],LAMES=['PA 39','PA 43','PA 52','À définir'],MANS=['Sangle','Manivelle','Moteur filaire','Moteur radio','Moteur solaire','Préparé pour moteur'];
+const WX={vitType:VITS[0],volet:VOLETS[0],vLame:LAMES[0],vMan:MANS[0]},DX={mat:'bois',coulInt:'',coulExt:'',capot:false,pbois:false,pboisTxt:''};
+const fix=d=>{for(const k in DX)if(d[k]===undefined)d[k]=DX[k];for(const w of d.windows)for(const k in WX)if(w[k]===undefined)w[k]=WX[k];return d};
+const hasV=w=>w.volet&&w.volet!==VOLETS[0]&&w.volet!==VOLETS[3];
+const newWin=(i,src)=>Object.assign({id:uid(),...WX,rep:'F'+i,piece:'',type:'double',ouv:'OB',sens:'D',sens2:'D',qte:1,mode:'tableau',L:['','',''],H:['','',''],D:['',''],
   jeuL:st.S.pose.jeuL,jeuH:st.S.pose.jeuH,Wd:'',Hd:'',axe:'',axeT:'',vit:st.S.vit[0].id,rempH:(st.S.vit.find(v=>v.pan)||st.S.vit[0]).id,rempB:(st.S.vit.find(v=>v.pan)||st.S.vit[0]).id,
   ess:st.S.ess[0].id,fin:st.S.fin[0].id,teinte:'',pose:POSES[0],depose:false,hFab:'',hPose:'',notes:''},src?clone(src):{},src?{id:uid(),rep:'F'+i}:{});
-const newDossier=()=>({id:uid(),client:'',adresse:'',tel:'',mail:'',chantier:'',devisNo:'R'+today().replace(/-/g,'')+'-'+(st.D.size+1),date:today(),tva:10,remise:0,poseMode:'separee',windows:[newWin(1)],updatedAt:Date.now()});
+const newDossier=()=>({id:uid(),...DX,client:'',adresse:'',tel:'',mail:'',chantier:'',devisNo:'R'+today().replace(/-/g,'')+'-'+(st.D.size+1),date:today(),tva:10,remise:0,poseMode:'separee',windows:[newWin(1)],updatedAt:Date.now()});
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),2800)}
 function elev(w,R){
   if(!R.ok)return`<svg class="elev" viewBox="0 0 400 260" role="img" aria-label="Élévation"><rect x="40" y="20" width="320" height="220" rx="4" fill="none" stroke="var(--line)" stroke-width="3" stroke-dasharray="10 8"/><text x="200" y="136" text-anchor="middle" fill="var(--mute)" font-size="20">Saisis les cotes</text></svg>`;
@@ -371,14 +376,19 @@ function renderSaisie(){
   const v=$('#v-saisie'),d=cur();
   if(!d){v.innerHTML=`<div class="empty"><h2>Aucun chantier</h2><p>Crée un chantier pour relever les fenêtres. Tout reste enregistré sur la tablette, même sans réseau.</p><button class="btn pri" data-act="newd">Nouveau chantier</button></div>`;return}
   if(st.wi>=d.windows.length)st.wi=Math.max(0,d.windows.length-1);
-  const w=d.windows[st.wi];
+  const w=d.windows[st.wi],wasOpen=(v.querySelector('details.card')||{}).open;
   v.innerHTML=`
-  <details class="card" ${d.client?'':'open'} style="margin:0 0 18px"><summary>Client et chantier : ${esc(d.client||'à saisir')}${d.chantier?' – '+esc(d.chantier):''}</summary>
+  <details class="card" ${d.client&&!wasOpen?'':'open'} style="margin:0 0 18px"><summary>Client et chantier : ${esc(d.client||'à saisir')}${d.chantier?' – '+esc(d.chantier):''} · ${MATN[d.mat]}${d.mat==='pvc'&&d.capot?' capot alu':''}</summary>
    <div class="f w2" style="margin-top:8px">
     <label>Client<input data-d="client" value="${esc(d.client)}"></label><label>Chantier<input data-d="chantier" value="${esc(d.chantier)}"></label>
     <label>Adresse<input data-d="adresse" value="${esc(d.adresse)}"></label><label>Téléphone<input data-d="tel" value="${esc(d.tel)}" inputmode="tel"></label>
     <label>Mail<input data-d="mail" value="${esc(d.mail)}" inputmode="email"></label><label>Date du relevé<input type="date" data-d="date" value="${esc(d.date)}"></label>
    </div>
+   <fieldset style="margin-top:12px"><legend>Type de chantier</legend><div class="seg">${MATS.map(([k,l])=>`<button type="button" data-dseg="mat" data-v="${k}" aria-pressed="${d.mat===k}">${l}</button>`).join('')}</div>
+    <div class="f w2" style="margin-top:10px"><label>Couleur intérieure<input data-d="coulInt" value="${esc(d.coulInt)}" placeholder="blanc, RAL 9016, chêne…"></label><label>Couleur extérieure<input data-d="coulExt" value="${esc(d.coulExt)}" placeholder="RAL 7016, anthracite…"></label>
+     ${d.mat==='pvc'?`<label class="ck"><input type="checkbox" data-d="capot" data-re="1"${d.capot?' checked':''}>Capotage alu extérieur</label>`:''}
+     <label class="ck"><input type="checkbox" data-d="pbois" data-re="1"${d.pbois?' checked':''}>Petits bois dans le vitrage</label>
+     ${d.pbois?`<label>Petits bois : type et disposition<input data-d="pboisTxt" value="${esc(d.pboisTxt)}" placeholder="incorporés 26 mm blancs, 1 vertical + 2 horizontaux"></label>`:''}</div></fieldset>
    <label style="margin-top:10px">Notes générales (accès, étage, stationnement…)<textarea data-d="notes">${esc(d.notes||'')}</textarea></label>
    <div class="bar" style="margin:14px 0 0"><button class="btn danger" data-act="deld">Supprimer le chantier</button></div>
   </details>
@@ -399,11 +409,14 @@ function renderSaisie(){
      <div class="f" style="margin-top:10px">${inp('H.0','Hauteur à gauche',w.H[0])}${inp('H.1','Hauteur au milieu',w.H[1])}${inp('H.2','Hauteur à droite',w.H[2])}</div>
      <div class="f" style="margin-top:10px">${inp('D.0','Diagonale 1',w.D[0])}${inp('D.1','Diagonale 2',w.D[1])}${inp('jeuL','Jeu de pose par côté',w.jeuL)}${inp('jeuH','Jeu de pose en hauteur (total)',w.jeuH)}</div>`}
     </fieldset>
-    <fieldset><legend>Bois, ${w.type==='porte'?'remplissages':'vitrage'}, finition</legend><div class="f w2">
+    ${d.mat==='bois'?`    <fieldset><legend>Bois, ${w.type==='porte'?'remplissages':'épaisseur de vitrage'}, finition</legend><div class="f w2">
      <label>Essence<select data-w="ess">${opt(st.S.ess,w.ess)}</select></label>
-     ${w.type==='porte'?`<label>Remplissage haut<select data-w="rempH">${opt(st.S.vit,w.rempH)}</select></label><label>Remplissage bas<select data-w="rempB">${opt(st.S.vit,w.rempB)}</select></label>`:`<label>Vitrage<select data-w="vit">${opt(st.S.vit.filter(x=>!x.pan),w.vit)}</select></label>`}
+     ${w.type==='porte'?`<label>Remplissage haut<select data-w="rempH">${opt(st.S.vit,w.rempH)}</select></label><label>Remplissage bas<select data-w="rempB">${opt(st.S.vit,w.rempB)}</select></label>`:`<label>Vitrage (composition)<select data-w="vit">${opt(st.S.vit.filter(x=>!x.pan),w.vit)}</select></label>`}
      <label>Finition<select data-w="fin">${opt(st.S.fin,w.fin)}</select></label>${inp('teinte','Teinte',w.teinte,'','RAL, chêne clair…')}
-    </div></fieldset>
+    </div></fieldset>`:''}
+    <fieldset><legend>Vitrage</legend>${seg('vitType',w.vitType,VITS.map(x=>[x,x.replace(' (voir notes)','')]))}</fieldset>
+    <fieldset><legend>Volet roulant</legend>${seg('volet',w.volet,VOLETS.map(x=>[x,x]))}
+     ${hasV(w)?`<p class="muted" style="margin:12px 0 4px">Type de lame</p>${seg('vLame',w.vLame,LAMES.map(x=>[x,x]))}<p class="muted" style="margin:12px 0 4px">Manœuvre et moteur</p>${seg('vMan',w.vMan,MANS.map(x=>[x,x]))}`:''}</fieldset>
     <fieldset><legend>Pose</legend><div class="f w2">
      <label>Type de pose<select data-w="pose">${optS(POSES,w.pose)}</select></label>
      <label class="ck"><input type="checkbox" data-w="depose"${w.depose?' checked':''}>Dépose de l'existant</label>
@@ -419,24 +432,25 @@ function renderChips(){const d=cur(),c=$('#chips');if(!d||!c)return;
 function renderRes(){const d=cur();if(!d||!$('#res'))return;const w=d.windows[st.wi];if(!w)return;
   const R=compute(w,st.S);$('#elev').innerHTML=elev(w,R);
   if(!R.ok){$('#res').innerHTML=`<ul class="al">${R.alerts.map(a=>`<li class="${a.n}">${esc(a.t)}</li>`).join('')}</ul>`;return}
-  $('#res').innerHTML=`<div class="price"><span class="big" style="font-size:clamp(26px,3.6vw,34px)">${mm(R.W)} × ${mm(R.H)}</span><small>cote dormant à fabriquer, en mm</small></div>
-   <dl class="kv">${R.leaves.map(l=>`<dt>${esc(l.nom)}</dt><dd>${mm(l.L)} × ${mm(l.H)} · ${l.role==='OB'?'OB':l.role==='FR'?'française':l.role==='SF'?'semi-fixe':'porte'} · ~${l.kg} kg</dd>`).join('')}
-    ${R.fills.map(f=>`<dt>${f.c.pan?'Panneau':'Vitrage'} ${esc(f.leaf.toLowerCase())}</dt><dd>${f.n*R.q} × ${mm(f.Lc)} × ${mm(f.Hc)} mm</dd>`).join('')}</dl>
+  $('#res').innerHTML=`<div class="price"><span class="big" style="font-size:clamp(26px,3.6vw,34px)">${mm(R.W)} × ${mm(R.H)}</span><small>${d.mat==='bois'?'cote dormant à fabriquer':'cote de fenêtre à commander'}, en mm</small></div>
+   <dl class="kv"><dt>Vitrage</dt><dd>${esc(w.vitType)}${d.pbois?' · petits bois':''}</dd><dt>Volet roulant</dt><dd>${esc(w.volet)}${hasV(w)?' · '+esc(w.vLame)+' · '+esc(w.vMan):''}</dd>${d.mat!=='bois'?'':R.leaves.map(l=>`<dt>${esc(l.nom)}</dt><dd>${mm(l.L)} × ${mm(l.H)} · ${l.role==='OB'?'OB':l.role==='FR'?'française':l.role==='SF'?'semi-fixe':'porte'} · ~${l.kg} kg</dd>`).join('')}
+    ${d.mat!=='bois'?'':R.fills.map(f=>`<dt>${f.c.pan?'Panneau':'Vitrage'} ${esc(f.leaf.toLowerCase())}</dt><dd>${f.n*R.q} × ${mm(f.Lc)} × ${mm(f.Hc)} mm</dd>`).join('')}</dl>
    <ul class="al">${R.alerts.length?R.alerts.map(a=>`<li class="${a.n}">${esc(a.t)}</li>`).join(''):'<li class="ok">Cotes cohérentes.</li>'}</ul>`}
 function renderRecap(){const d=cur(),v=$('#v-recap');if(!d){v.innerHTML='<div class="empty"><h2>Aucun chantier</h2></div>';return}
-  const rows=d.windows.map((w,i)=>{const R=compute(w,st.S),[n,t]=statut(R);return`<tr data-act="selw" data-i="${i}" data-go="1"><td><b>${esc(w.rep)}</b></td><td>${esc(w.piece)}</td><td>${TYPES[w.type]}</td><td class="n">${R.q}</td><td class="n">${R.ok?mm(R.W)+' × '+mm(R.H):'–'}</td><td>${R.ok?R.fills.map(f=>`${f.n*R.q} × ${mm(f.Lc)} × ${mm(f.Hc)}`).join('<br>'):''}</td><td><span class="tag ${n}">${t}</span></td></tr>`}).join('');
+  const rows=d.windows.map((w,i)=>{const R=compute(w,st.S),[n,t]=statut(R);return`<tr data-act="selw" data-i="${i}" data-go="1"><td><b>${esc(w.rep)}</b></td><td>${esc(w.piece)}</td><td>${TYPES[w.type]}</td><td class="n">${R.q}</td><td class="n">${R.ok?mm(R.W)+' × '+mm(R.H):'–'}</td><td>${esc(w.vitType)}${d.mat==='bois'&&R.ok?'<br>'+R.fills.map(f=>`${f.n*R.q} × ${mm(f.Lc)} × ${mm(f.Hc)}`).join('<br>'):''}</td><td>${hasV(w)?esc(w.volet)+'<br>'+esc(w.vLame)+' · '+esc(w.vMan):esc(w.volet)}</td><td><span class="tag ${n}">${t}</span></td></tr>`}).join('');
   const nb=d.windows.reduce((s,w)=>s+Math.max(1,Math.round(num(w.qte)||1)),0),bad=d.windows.filter(w=>statut(compute(w,st.S))[0]!=='ok').length;
   v.innerHTML=`<div class="bar"><h2>${esc(d.client||'Chantier')}${d.chantier?' – '+esc(d.chantier):''}</h2></div>
    <p class="big" style="margin:0 0 6px">${nb} menuiserie${nb>1?'s':''} · ${bad?`<span style="color:var(--warn)">${bad} à revoir</span>`:'<span style="color:var(--ok)">tout est OK</span>'}</p>
+   <p style="margin:0 0 6px"><b>${MATN[d.mat]}</b>${d.mat==='pvc'?(d.capot?' avec capotage alu':' sans capotage'):''} · intérieur : ${esc(d.coulInt||'à préciser')} · extérieur : ${esc(d.coulExt||'à préciser')} · petits bois : ${d.pbois?'oui'+(d.pboisTxt?' ('+esc(d.pboisTxt)+')':''):'non'}</p>
    <p class="muted">Touche une ligne pour la modifier. Cotes en mm.</p>
-   <div class="scroll"><table class="rec stack"><thead><tr><th>Repère</th><th>Pièce</th><th>Type</th><th class="n">Qté</th><th class="n">Dormant</th><th>Vitrages</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`}
+   <div class="scroll"><table class="rec stack"><thead><tr><th>Repère</th><th>Pièce</th><th>Type</th><th class="n">Qté</th><th class="n">Cote</th><th>Vitrage</th><th>Volet roulant</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`}
 function renderEnvoyer(){const d=cur(),v=$('#v-envoyer');
   v.innerHTML=`<div class="send">
    <h2>Envoyer au bureau</h2>
    ${d?`<p>Chantier : <b>${esc(d.client||'Client à saisir')}${d.chantier?' – '+esc(d.chantier):''}</b>, ${d.windows.length} fenêtre${d.windows.length>1?'s':''}.${d.sentAt?` Dernier envoi : ${new Date(d.sentAt).toLocaleString('fr-FR')}.`:''}</p>
    <button class="btn pri" data-act="share">Partager le relevé (mail, WhatsApp, Drive…)</button>
    <button class="btn" data-act="dl">Enregistrer le fichier sur la tablette</button>
-   <p class="muted">Sans réseau, enregistre le fichier ou prépare le mail : il partira dès que la tablette retrouve le Wi-Fi. Au bureau : page « Fenêtres bois – chiffrage », onglet Saisie, bouton « Importer un relevé ».</p>`:'<p>Aucun chantier à envoyer.</p>'}
+   <p class="muted">Sans réseau, enregistre le fichier ou prépare le mail : il partira dès que la tablette retrouve le Wi-Fi. Au bureau : le fichier s'importe dans la page de chiffrage (bouton « Importer un relevé »).</p>`:'<p>Aucun chantier à envoyer.</p>'}
    <h2 style="margin-top:18px">Recevoir</h2>
    <button class="btn" data-act="imp">Importer un fichier (relevé ou réglages du bureau)</button>
    <p class="muted">Réglages du bureau : listes d'essences, de vitrages et de finitions, jeux de pose. ${st.setAt?'Derniers reçus le '+new Date(st.setAt).toLocaleDateString('fr-FR')+'.':'Pas encore reçus : la tablette utilise les réglages d\'origine.'}</p>
@@ -453,7 +467,7 @@ function route(){const h=(location.hash||'#saisie').slice(1);st.view=RV[h]?h:'sa
   for(const s of $$('.view'))s.classList.toggle('on',s.id==='v-'+st.view);RV[st.view]()}
 
 /* ---------- échange de fichiers ---------- */
-const fname=d=>('Releve '+(d.client||'chantier')+' '+(d.date||today())).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w.\- ]+/g,'').trim().replace(/\s+/g,'-')+'.txt';
+const fname=d=>('Releve '+(d.client||'chantier')+' '+(d.date||today())).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w.\- ]+/g,'').trim().replace(/\s+/g,'-')+'.txt';
 const payload=d=>JSON.stringify({app:'releve-fenetres-mcm',kind:'releve',v:1,exportedAt:new Date().toISOString(),dossier:d});
 function download(file){const u=URL.createObjectURL(file),a=document.createElement('a');a.href=u;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('Fichier enregistré dans Téléchargements')}
 async function importText(t){let o;try{o=JSON.parse(t)}catch(e){toast('Fichier illisible');return}
@@ -465,7 +479,7 @@ async function importText(t){let o;try{o=JSON.parse(t)}catch(e){toast('Fichier i
 function setPath(o,p,v){const k=p.split('.');let x=o;for(let i=0;i<k.length-1;i++)x=x[k[i]];x[k[k.length-1]]=v}
 document.addEventListener('input',e=>{const t=e.target,d=cur();
   if(t.dataset.w&&d){setPath(d.windows[st.wi],t.dataset.w,t.type==='checkbox'?t.checked:t.value);touch();renderRes();renderChips()}
-  else if(t.dataset.d&&d){d[t.dataset.d]=t.value;touch();if(t.dataset.d==='client'||t.dataset.d==='chantier')renderSel()}
+  else if(t.dataset.d&&d){d[t.dataset.d]=t.type==='checkbox'?t.checked:t.value;touch();if(t.dataset.re)renderSaisie();if(t.dataset.d==='client'||t.dataset.d==='chantier')renderSel()}
   else if(t.dataset.s){setPath(st.S,t.dataset.s,t.value===''?'':Number(t.value));save()}});
 document.addEventListener('change',e=>{const t=e.target;
   if(t.id==='dossier'){st.cur=t.value;st.wi=0;save();route()}
@@ -474,15 +488,16 @@ let installEvt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;$('#install').style.display='inline-flex'});
 window.addEventListener('appinstalled',()=>{$('#install').style.display='none';toast('Appli installée')});
 document.addEventListener('click',async e=>{
-  const b=e.target.closest('[data-act],[data-seg]');if(!b){st.arm=null;return}
+  const b=e.target.closest('[data-act],[data-seg],[data-dseg]');if(!b){st.arm=null;return}
   const d=cur(),a=b.dataset.act;
+  if(b.dataset.dseg){d[b.dataset.dseg]=b.dataset.v;touch();renderSaisie();renderSel();return}
   if(b.dataset.seg){d.windows[st.wi][b.dataset.seg]=b.dataset.v;touch();renderSaisie();return}
   if(a!=='delw'&&a!=='deld'){st.arm=null;for(const x of $$('.btn.arm'))x.classList.remove('arm')}
   if(a==='newd'){const n=newDossier();st.D.set(n.id,n);st.cur=n.id;st.wi=0;save(true);renderSel();location.hash='#saisie';route();toast('Chantier créé')}
   else if(a==='deld'&&d){if(st.arm!=='deld'){st.arm='deld';b.classList.add('arm');b.textContent='Confirmer : supprimer le chantier';return}
     st.D.delete(d.id);st.cur=[...st.D.keys()][0]||null;st.arm=null;save(true);renderSel();route();toast('Chantier supprimé')}
   else if(a==='selw'){st.wi=+b.dataset.i;if(b.dataset.go)location.hash='#saisie';renderSaisie()}
-  else if(a==='addw'&&d){const last=d.windows[d.windows.length-1],w=newWin(d.windows.length+1);if(last)Object.assign(w,{ess:last.ess,fin:last.fin,teinte:last.teinte,vit:last.vit,pose:last.pose,depose:last.depose,jeuL:last.jeuL,jeuH:last.jeuH});d.windows.push(w);st.wi=d.windows.length-1;touch();renderSaisie();const r=$('[data-w="piece"]');if(r)r.focus()}
+  else if(a==='addw'&&d){const last=d.windows[d.windows.length-1],w=newWin(d.windows.length+1);if(last)Object.assign(w,{vitType:last.vitType,volet:last.volet,vLame:last.vLame,vMan:last.vMan,ess:last.ess,fin:last.fin,teinte:last.teinte,vit:last.vit,pose:last.pose,depose:last.depose,jeuL:last.jeuL,jeuH:last.jeuH});d.windows.push(w);st.wi=d.windows.length-1;touch();renderSaisie();const r=$('[data-w="piece"]');if(r)r.focus()}
   else if(a==='dupw'&&d){d.windows.splice(st.wi+1,0,newWin(d.windows.length+1,d.windows[st.wi]));st.wi++;touch();renderSaisie();toast('Fenêtre dupliquée')}
   else if(a==='delw'&&d){if(st.arm!=='delw'){st.arm='delw';b.classList.add('arm');b.textContent='Confirmer la suppression';return}
     d.windows.splice(st.wi,1);if(!d.windows.length)d.windows.push(newWin(1));st.wi=Math.max(0,st.wi-1);st.arm=null;touch();renderSaisie()}
